@@ -1,0 +1,23 @@
+name: Update clocks
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: clocks
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node clocks.js
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
