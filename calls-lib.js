@@ -77,27 +77,24 @@ export const bookerOf = (event) => (event.description || '').match(/ref (\d+)/)?
 export const bookerName = (event) => (event.description || '').match(/Booked by ([^·]+)/)?.[1]?.trim() || 'the team';
 
 const ts = (d, style) => `<t:${Math.floor(d.getTime() / 1000)}:${style}>`;
-const dayLabel = (iso) => {
-  const p = londonParts(londonTime(iso, '12:00'));
-  return `${p.weekday} ${Number(p.day)}`;
-};
-
 // Fixed English day names, so the board reads the same for everyone. Hours stay as Discord timestamps (local time).
 const dayHeading = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long' }).format(londonTime(iso, '12:00'));
 
-// The full board: a line per day plus a button per day.
+// The full board: one line per day, in order, each with its own button on the right.
 export function renderBoard(events, now = new Date()) {
   const booked = bookedCalls(events, now);
-  const days = weekDates(now);
-  const lines = days.map(iso => {
+  const days = weekDates(now).map(iso => {
     const calls = booked.filter(c => c.date === iso);
-    const head = `**${dayHeading(iso)}**`;
-    if (!calls.length) return `${head} · free`;
-    return calls.map(c => `${head} · 🔒 **${c.name}** at ${ts(c.start, 't')} (${ts(c.start, 'R')}) · booked by ${bookerName(c)}`).join('\n');
-  });
-  const buttons = days.map(iso => {
-    const locked = booked.some(c => c.date === iso);
-    return { type: 2, style: locked ? 2 : 1, label: dayLabel(iso), emoji: { name: locked ? '🔒' : '📅' }, custom_id: `cal_day:${iso}` };
+    const detail = calls.length
+      ? calls.map(c => `🔒 **${c.name}** at ${ts(c.start, 't')} (${ts(c.start, 'R')}) · booked by ${bookerName(c)}`).join('\n')
+      : '-# free';
+    return {
+      type: 9,
+      components: [{ type: 10, content: `**${dayHeading(iso)}**\n${detail}` }],
+      accessory: calls.length
+        ? { type: 2, style: 2, label: 'Booked', emoji: { name: '🔒' }, custom_id: `cal_day:${iso}` }
+        : { type: 2, style: 1, label: 'Book', emoji: { name: '📅' }, custom_id: `cal_day:${iso}` },
+    };
   });
   return [{
     type: 17,
@@ -105,10 +102,8 @@ export function renderBoard(events, now = new Date()) {
     components: [
       { type: 10, content: `## 📅 ${CALLS.title}\n-# Pick a free day, choose the hour, it is locked for everyone. Times show in **your** time zone.` },
       { type: 14, divider: true, spacing: 2 },
-      { type: 10, content: lines.join('\n') },
+      ...days,
       { type: 14, divider: true, spacing: 1 },
-      { type: 1, components: buttons.slice(0, 4) },
-      { type: 1, components: buttons.slice(4) },
       { type: 10, content: '-# Every booked call becomes a Discord event in the War Room VC. Click **Interested** for a reminder.' },
     ],
   }];
