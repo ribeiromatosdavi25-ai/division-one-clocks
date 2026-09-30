@@ -1,9 +1,9 @@
-// Every morning: roll the pinned "Weekly calls" board forward one day and add Discord events for any
-// recurring calls in calls.json. Booking itself happens from the board's buttons (Vercel endpoint).
-// calls-lib.js is a copy of nexo-discord/interactions/lib/calls.js: keep both identical.
+// Every morning: roll the "Weekly calls" board forward one day, refresh the "Next call" card under it,
+// and add Discord events for any recurring calls in calls.json. Booking itself happens from the board's
+// buttons (Vercel endpoint). calls-lib.js is a copy of nexo-discord/interactions/lib/calls.js: keep both identical.
 import { readFileSync } from 'node:fs';
 import { NEXO_ID, discord } from './lib.js';
-import { CALLS, londonTime, weekDates, bookedCalls, renderBoard } from './calls-lib.js';
+import { CALLS, londonTime, weekDates, bookedCalls, syncCallsChannel } from './calls-lib.js';
 
 const { calls } = JSON.parse(readFileSync(process.env.CALLS_FILE || new URL('./calls.json', import.meta.url), 'utf8'));
 const now = new Date();
@@ -27,21 +27,7 @@ for (const iso of weekDates(now)) {
     console.log('✅ recurring call added:', iso, c.time);
   }
 }
-events = await discord('GET', `/guilds/${CALLS.guild}/scheduled-events`);
 
-// Update the pinned board (old or new title), or create and pin it the first time.
-const components = renderBoard(events, now);
-const pins = await discord('GET', `/channels/${CALLS.channel}/pins`);
-const board = (pins || []).find(m => m.author?.id === NEXO_ID && /Weekly calls|This week's calls/.test(JSON.stringify(m.components || [])));
-if (board) {
-  await discord('PATCH', `/channels/${CALLS.channel}/messages/${board.id}`, { components });
-  console.log('✅ board rolled forward');
-} else {
-  const msg = await discord('POST', `/channels/${CALLS.channel}/messages`, { flags: 1 << 15, allowed_mentions: { parse: [] }, components });
-  if (msg.id) {
-    await discord('PUT', `/channels/${CALLS.channel}/messages/pins/${msg.id}`);
-    await new Promise(r => setTimeout(r, 800));
-    for (const n of (await discord('GET', `/channels/${CALLS.channel}/messages?limit=5`)).filter(m => m.type === 6)) await discord('DELETE', `/channels/${CALLS.channel}/messages/${n.id}`);
-  }
-  console.log('✅ board created and pinned');
-}
+events = await discord('GET', `/guilds/${CALLS.guild}/scheduled-events`);
+await syncCallsChannel(discord, events, NEXO_ID, now);
+console.log('✅ board and next-call card synced');

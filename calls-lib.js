@@ -80,6 +80,37 @@ const ts = (d, style) => `<t:${Math.floor(d.getTime() / 1000)}:${style}>`;
 // Fixed English day names, so the board reads the same for everyone. Hours stay as Discord timestamps (local time).
 const dayHeading = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long' }).format(londonTime(iso, '12:00'));
 
+// The "Next call" card that sits under the board.
+export function renderNext(events, now = new Date()) {
+  const next = bookedCalls(events, now)[0];
+  const body = next
+    ? [
+      { type: 10, content: `## ⏭️ Next call\n### ${next.name}\n${ts(next.start, 'F')} · ${ts(next.start, 'R')}` },
+      { type: 10, content: `-# Booked by ${bookerName(next)} · in <#${CALLS.voice}>` },
+      { type: 1, components: [
+        { type: 2, style: 5, label: 'Event & reminder', emoji: { name: '🔔' }, url: `https://discord.com/events/${CALLS.guild}/${next.id}` },
+        { type: 2, style: 5, label: 'Join the VC', emoji: { name: '🔊' }, url: `https://discord.com/channels/${CALLS.guild}/${CALLS.voice}` },
+      ] },
+    ]
+    : [
+      { type: 10, content: '## ⏭️ Next call\nNothing booked yet.' },
+      { type: 10, content: '-# Book a day on the board above and it shows up here.' },
+    ];
+  return [{ type: 17, accent_color: 0x0075ff, components: body }];
+}
+
+// Find NEXO's board and next-call card in the channel, update both, create whatever is missing.
+export async function syncCallsChannel(api, events, nexoId, now = new Date()) {
+  const recent = await api('GET', `/channels/${CALLS.channel}/messages?limit=50`);
+  const mine = (recent || []).filter(m => m.author?.id === nexoId);
+  const find = (re) => mine.find(m => re.test(JSON.stringify(m.components || [])));
+  for (const [re, components] of [[/Weekly calls|This week's calls/, renderBoard(events, now)], [/Next call/, renderNext(events, now)]]) {
+    const msg = find(re);
+    if (msg) await api('PATCH', `/channels/${CALLS.channel}/messages/${msg.id}`, { components });
+    else await api('POST', `/channels/${CALLS.channel}/messages`, { flags: 1 << 15, allowed_mentions: { parse: [] }, components });
+  }
+}
+
 // The full board: one line per day, in order, each with its own button on the right.
 export function renderBoard(events, now = new Date()) {
   const booked = bookedCalls(events, now);
