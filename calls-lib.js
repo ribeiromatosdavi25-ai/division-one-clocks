@@ -85,7 +85,7 @@ export function renderNext(events, now = new Date()) {
   const next = bookedCalls(events, now)[0];
   const body = next
     ? [
-      { type: 10, content: `## ⏭️ Next call\n### ${next.name}\n${ts(next.start, 'F')} · ${ts(next.start, 'R')}` },
+      { type: 10, content: `## ⏭️ Next call\n### ${next.name}\n**${dayHeading(next.date)}** · ${ts(next.start, 't')} your time` },
       { type: 10, content: `-# Booked by ${bookerName(next)} · in <#${CALLS.voice}>` },
       { type: 1, components: [
         { type: 2, style: 5, label: 'Event & reminder', emoji: { name: '🔔' }, url: `https://discord.com/events/${CALLS.guild}/${next.id}` },
@@ -117,7 +117,7 @@ export function renderBoard(events, now = new Date()) {
   const days = weekDates(now).map(iso => {
     const calls = booked.filter(c => c.date === iso);
     const detail = calls.length
-      ? calls.map(c => `🔒 **${c.name}** at ${ts(c.start, 't')} (${ts(c.start, 'R')}) · booked by ${bookerName(c)}`).join('\n')
+      ? calls.map(c => `🔒 **${c.name}** at ${ts(c.start, 't')} your time · booked by ${bookerName(c)}`).join('\n')
       : '-# free';
     return {
       type: 9,
