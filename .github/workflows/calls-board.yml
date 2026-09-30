@@ -1,0 +1,24 @@
+name: Calls board + events (daily 7:00 UK)
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: calls-board
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node calls-board.js
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

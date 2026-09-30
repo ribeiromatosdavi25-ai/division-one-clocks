@@ -10,6 +10,7 @@ Scheduled jobs for the Division One Discord, run for free on GitHub Actions. The
 | `ai-news.js` | hourly | Posts new articles from official AI blogs (OpenAI, Google DeepMind, Google AI, Hugging Face) to #ai-news. Never repeats, never backfills more than 36 hours, max 3 per run |
 | `trending.js` | Monday 10:00 | Posts the most starred AI repos created in the last 7 days to #ai-resources |
 | `bump-reminder.js` | every 2 hours | Reminds the team in #staff-chat to /bump on DISBOARD (the bump itself stays manual) |
+| `calls-board.js` | daily 7:00 | Rebuilds the pinned "This week's calls" board in #calls from `calls.json` (UK times) and creates a Discord event for each call in the next 7 days |
 | `weekly-report.js` | Sunday 19:00 | Members, applications, most active channels and invite uses, in #staff-chat |
 
 Times are in UTC in the workflows, so they shift by an hour when the UK changes clocks.
@@ -17,3 +18,13 @@ Times are in UTC in the workflows, so they shift by an hour when the UK changes 
 Test any job without posting: `DRY_RUN=1 DISCORD_TOKEN=... node <job>.js`
 
 If GitHub pauses the schedules after 60 days without activity: `gh workflow enable <file>.yml`.
+
+## Adding a call
+
+Edit `calls.json`. Times are UK time; the board shows everyone their own time zone.
+
+```json
+{ "calls": [
+  { "name": "Weekly call", "emoji": "🔊", "days": ["monday"], "time": "17:00", "minutes": 60, "channel": "<voice channel id>" }
+] }
+```
