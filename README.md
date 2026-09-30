@@ -1,7 +1,19 @@
-# Division One clocks
+# Division One automations
 
-Keeps the 🌍 GLOBAL TIME voice channels in the Division One Discord showing each city's local time.
+Scheduled jobs for the Division One Discord, run for free on GitHub Actions. The NEXO bot token lives in the `DISCORD_TOKEN` repository secret, never in the code.
 
-GitHub Actions runs `clocks.js` every 10 minutes (Discord only allows 2 channel renames per 10 minutes). The bot token lives in the `DISCORD_TOKEN` repository secret, never in the code.
+| Job | When (UK time) | What it does |
+|---|---|---|
+| `clocks.js` | every 10 min | Renames the GLOBAL TIME voice channels to each city's time, plus the member counter |
+| `daily-goals.js` | daily 9:00 | Posts the daily goal prompt with a thread in #daily-goals |
+| `weekly-numbers.js` | Friday 17:00 | Posts the numbers check-in in #weekly-numbers |
+| `ai-news.js` | hourly | Posts new articles from official AI blogs (OpenAI, Google DeepMind, Google AI, Hugging Face) to #ai-news. Never repeats, never backfills more than 36 hours, max 3 per run |
+| `trending.js` | Monday 10:00 | Posts the most starred AI repos created in the last 7 days to #ai-resources |
+| `bump-reminder.js` | every 2 hours | Reminds the team in #staff-chat to /bump on DISBOARD (the bump itself stays manual) |
+| `weekly-report.js` | Sunday 19:00 | Members, applications, most active channels and invite uses, in #staff-chat |
 
-To add a city, create a voice channel in the category and add a line to `CLOCKS` in `clocks.js` with its channel ID and an IANA time zone.
+Times are in UTC in the workflows, so they shift by an hour when the UK changes clocks.
+
+Test any job without posting: `DRY_RUN=1 DISCORD_TOKEN=... node <job>.js`
+
+If GitHub pauses the schedules after 60 days without activity: `gh workflow enable <file>.yml`.

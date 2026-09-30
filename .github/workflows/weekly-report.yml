@@ -1,12 +1,12 @@
-name: Clocks + member counter (every 10 min)
+name: Weekly report (Sunday 19:00 UK)
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '0 18 * * 0'
   workflow_dispatch:
 
 concurrency:
-  group: clocks
+  group: weekly-report
   cancel-in-progress: false
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node clocks.js
+      - run: node weekly-report.js
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
