@@ -82,13 +82,16 @@ const dayLabel = (iso) => {
   return `${p.weekday} ${Number(p.day)}`;
 };
 
+// Fixed English day names, so the board reads the same for everyone. Hours stay as Discord timestamps (local time).
+const dayHeading = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long' }).format(londonTime(iso, '12:00'));
+
 // The full board: a line per day plus a button per day.
 export function renderBoard(events, now = new Date()) {
   const booked = bookedCalls(events, now);
   const days = weekDates(now);
   const lines = days.map(iso => {
     const calls = booked.filter(c => c.date === iso);
-    const head = `**${ts(londonTime(iso, '12:00'), 'D')}**`;
+    const head = `**${dayHeading(iso)}**`;
     if (!calls.length) return `${head} · free`;
     return calls.map(c => `${head} · 🔒 **${c.name}** at ${ts(c.start, 't')} (${ts(c.start, 'R')}) · booked by ${bookerName(c)}`).join('\n');
   });
