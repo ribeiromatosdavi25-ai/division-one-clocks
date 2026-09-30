@@ -1,4 +1,4 @@
-name: Calls board + events (daily 7:00 UK)
+name: Weekly calls board (daily 7:00 UK)
 
 on:
   schedule:

@@ -1,95 +1,47 @@
-// Every morning: rebuild the pinned "This week's calls" board in #calls and create a Discord event
-// for every call in the next 7 days. The schedule lives in calls.json, in UK time.
-// Times on the board use Discord timestamps, so everyone sees them in their own time zone.
+// Every morning: roll the pinned "Weekly calls" board forward one day and add Discord events for any
+// recurring calls in calls.json. Booking itself happens from the board's buttons (Vercel endpoint).
+// calls-lib.js is a copy of nexo-discord/interactions/lib/calls.js: keep both identical.
 import { readFileSync } from 'node:fs';
-import { GUILD, NEXO_ID, discord, card, text, sep } from './lib.js';
+import { NEXO_ID, discord } from './lib.js';
+import { CALLS, londonTime, weekDates, bookedCalls, renderBoard } from './calls-lib.js';
 
-const CALLS_CHANNEL = '1554911212872011867'; // 📅-calls
 const { calls } = JSON.parse(readFileSync(process.env.CALLS_FILE || new URL('./calls.json', import.meta.url), 'utf8'));
-const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-const londonParts = (d) => Object.fromEntries(
-  new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'long', hour12: false })
-    .formatToParts(d).map(p => [p.type, p.value]),
-);
-
-// The UTC instant when London's clock shows `hhmm` on the London date of `day`.
-function londonTime(day, hhmm) {
-  const p = londonParts(day);
-  const [h, m] = hhmm.split(':').map(Number);
-  let t = Date.UTC(+p.year, +p.month - 1, +p.day, h, m);
-  for (let i = 0; i < 3; i++) {
-    const q = londonParts(new Date(t));
-    const diff = (h * 60 + m) - (+q.hour % 24 * 60 + +q.minute);
-    if (!diff) break;
-    t += diff * 60e3;
-  }
-  return new Date(t);
-}
-
-// Every call in the next 7 days, today included.
 const now = new Date();
-const week = [];
-for (let i = 0; i < 7; i++) {
-  const day = new Date(now.getTime() + i * 864e5);
-  const weekday = londonParts(day).weekday.toLowerCase();
-  const occurrences = calls
-    .filter(c => c.days.map(d => d.toLowerCase()).includes(weekday))
-    .map(c => ({ ...c, start: londonTime(day, c.time) }))
-    .filter(o => o.start.getTime() + (o.minutes || 60) * 60e3 > now.getTime())
-    .sort((a, b) => a.start - b.start);
-  week.push({ day, occurrences });
-}
+let events = await discord('GET', `/guilds/${CALLS.guild}/scheduled-events`);
 
-const ts = (d, style) => `<t:${Math.floor(d.getTime() / 1000)}:${style}>`;
-const rows = week.map(({ day, occurrences }) => {
-  const label = `**${ts(londonTime(day, '12:00'), 'D')}**`;
-  if (!occurrences.length) return `${label}\n-# no calls`;
-  return `${label}\n` + occurrences.map(o => `${o.emoji || '📞'} **${o.name}** · ${ts(o.start, 't')} (${ts(o.start, 'R')}) · ${o.minutes || 60} min · <#${o.channel}>`).join('\n');
-});
-
-const board = card([
-  text("## 📅 This week's calls\n-# Times show in **your** time zone. Updated every morning."),
-  sep(2),
-  ...(calls.length
-    ? [text(rows.join('\n\n'))]
-    : [text('No calls scheduled yet.\nVote in the polls below and the schedule shows up here by itself.')]),
-  sep(),
-  text('-# Every call is also a Discord event at the top of the channel list. Click **Interested** to get a reminder.'),
-]);
-
-// Update the pinned board, or create and pin it the first time.
-const pins = await discord('GET', `/channels/${CALLS_CHANNEL}/pins`);
-const existing = (pins || []).find(m => m.author?.id === NEXO_ID && JSON.stringify(m.components || []).includes("This week's calls"));
-if (existing) {
-  await discord('PATCH', `/channels/${CALLS_CHANNEL}/messages/${existing.id}`, { components: board.components });
-  console.log('✅ board updated');
-} else {
-  const msg = await discord('POST', `/channels/${CALLS_CHANNEL}/messages`, board);
-  if (msg.id) {
-    await discord('PUT', `/channels/${CALLS_CHANNEL}/messages/pins/${msg.id}`);
-    await new Promise(r => setTimeout(r, 800));
-    const notices = (await discord('GET', `/channels/${CALLS_CHANNEL}/messages?limit=5`)).filter(m => m.type === 6);
-    for (const n of notices) await discord('DELETE', `/channels/${CALLS_CHANNEL}/messages/${n.id}`);
-  }
-  console.log('✅ board created and pinned');
-}
-
-// A Discord event for every call this week, unless it already exists.
-const events = await discord('GET', `/guilds/${GUILD}/scheduled-events`);
-for (const { occurrences } of week) {
-  for (const o of occurrences) {
-    const dup = (events || []).some(e => e.name === o.name && Math.abs(new Date(e.scheduled_start_time) - o.start) < 60e3);
-    if (dup || o.start < now) continue;
-    await discord('POST', `/guilds/${GUILD}/scheduled-events`, {
-      name: o.name,
-      description: o.description || 'Team call. Click Interested to get a reminder.',
+// Recurring calls from calls.json become events, unless that day is already booked.
+for (const iso of weekDates(now)) {
+  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long' }).format(londonTime(iso, '12:00')).toLowerCase();
+  for (const c of calls.filter(c => c.days.map(d => d.toLowerCase()).includes(weekday))) {
+    const start = londonTime(iso, c.time);
+    if (start < now || bookedCalls(events, now).some(b => b.date === iso)) continue;
+    await discord('POST', `/guilds/${CALLS.guild}/scheduled-events`, {
+      name: c.name || 'Weekly call',
+      description: 'Booked by the team schedule · ref 0',
       privacy_level: 2,
       entity_type: 2,
-      channel_id: o.channel,
-      scheduled_start_time: o.start.toISOString(),
-      scheduled_end_time: new Date(o.start.getTime() + (o.minutes || 60) * 60e3).toISOString(),
+      channel_id: CALLS.voice,
+      scheduled_start_time: start.toISOString(),
+      scheduled_end_time: new Date(start.getTime() + (c.minutes || CALLS.minutes) * 60e3).toISOString(),
     });
-    console.log('✅ event created:', o.name, o.start.toISOString());
+    console.log('✅ recurring call added:', iso, c.time);
   }
+}
+events = await discord('GET', `/guilds/${CALLS.guild}/scheduled-events`);
+
+// Update the pinned board (old or new title), or create and pin it the first time.
+const components = renderBoard(events, now);
+const pins = await discord('GET', `/channels/${CALLS.channel}/pins`);
+const board = (pins || []).find(m => m.author?.id === NEXO_ID && /Weekly calls|This week's calls/.test(JSON.stringify(m.components || [])));
+if (board) {
+  await discord('PATCH', `/channels/${CALLS.channel}/messages/${board.id}`, { components });
+  console.log('✅ board rolled forward');
+} else {
+  const msg = await discord('POST', `/channels/${CALLS.channel}/messages`, { flags: 1 << 15, allowed_mentions: { parse: [] }, components });
+  if (msg.id) {
+    await discord('PUT', `/channels/${CALLS.channel}/messages/pins/${msg.id}`);
+    await new Promise(r => setTimeout(r, 800));
+    for (const n of (await discord('GET', `/channels/${CALLS.channel}/messages?limit=5`)).filter(m => m.type === 6)) await discord('DELETE', `/channels/${CALLS.channel}/messages/${n.id}`);
+  }
+  console.log('✅ board created and pinned');
 }
