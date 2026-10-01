@@ -1,5 +1,7 @@
 // Every Friday: the weekly numbers check-in in #weekly-numbers (Division One only).
-import { CH, card, text, sep, postWithThread } from './lib.js';
+import { CH, card, text, sep, postWithThread, alreadyPosted } from './lib.js';
+
+if (await alreadyPosted(CH.weeklyNumbers, 'Numbers time', 48)) { console.log('already posted, skipping'); process.exit(0); }
 
 const week = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short' }).format(new Date());
 

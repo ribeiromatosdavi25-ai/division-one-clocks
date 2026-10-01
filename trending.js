@@ -1,6 +1,8 @@
 // Every Monday: the most starred AI repos created in the last 7 days, into #ai-resources.
 // GitHub has no "stars gained this week" API, so this is honest about what it is: new repos, ranked by stars.
-import { CH, discord, card, text, sep } from './lib.js';
+import { CH, discord, card, text, sep, alreadyPosted } from './lib.js';
+
+if (await alreadyPosted(CH.aiResources, 'New this week on GitHub', 48)) { console.log('already posted, skipping'); process.exit(0); }
 
 const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
 const TOPICS = ['llm', 'ai-agents', 'mcp', 'generative-ai', 'rag', 'agents'];

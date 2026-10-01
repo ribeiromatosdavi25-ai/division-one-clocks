@@ -1,10 +1,12 @@
-name: DISBOARD bump reminder (every 2h)
+name: Tick (every 10 min, runs whatever is due)
 
 on:
+  schedule:
+    - cron: '*/10 * * * *' # fallback only; cron-job.org is the real trigger
   workflow_dispatch:
 
 concurrency:
-  group: bump-reminder
+  group: tick
   cancel-in-progress: false
 
 jobs:
@@ -16,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node bump-reminder.js
+      - run: node tick.js
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

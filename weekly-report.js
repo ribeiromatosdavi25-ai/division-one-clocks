@@ -1,5 +1,7 @@
 // Every Sunday: a report for the Founders in #staff-chat. Members, applications, activity, invites.
-import { GUILD, CH, NEXO_ID, discord, card, text, sep, snowflakeTime } from './lib.js';
+import { GUILD, CH, NEXO_ID, discord, card, text, sep, snowflakeTime, alreadyPosted } from './lib.js';
+
+if (await alreadyPosted(CH.staff, 'Weekly report', 48)) { console.log('already posted, skipping'); process.exit(0); }
 
 const WEEK = 7 * 864e5;
 const since = Date.now() - WEEK;

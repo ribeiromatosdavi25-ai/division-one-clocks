@@ -1,5 +1,7 @@
 // Every morning: a daily goals prompt in #daily-goals with a thread for the answers.
-import { CH, card, text, postWithThread } from './lib.js';
+import { CH, card, text, postWithThread, alreadyPosted } from './lib.js';
+
+if (await alreadyPosted(CH.dailyGoals, '☀️', 12)) { console.log('already posted, skipping'); process.exit(0); }
 
 const today = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'short' }).format(new Date());
 

@@ -52,3 +52,12 @@ export async function postWithThread(channel, message, threadName) {
 }
 
 export const snowflakeTime = (id) => Number((BigInt(id) >> 22n) + 1420070400000n);
+
+// True when NEXO already posted a message containing `marker` in `channel` within the last `hours`.
+// Lets the posting jobs run from any number of ticks without ever posting twice.
+export async function alreadyPosted(channel, marker, hours) {
+  const recent = await discord('GET', `/channels/${channel}/messages?limit=30`);
+  const since = Date.now() - hours * 36e5;
+  return (recent || []).some(m => m.author?.id === NEXO_ID && snowflakeTime(m.id) > since
+    && (m.content + JSON.stringify(m.components || [])).includes(marker));
+}

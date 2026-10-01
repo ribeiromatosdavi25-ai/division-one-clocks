@@ -1,8 +1,6 @@
 name: Trending AI repos (Monday 10:00 UK)
 
 on:
-  schedule:
-    - cron: '0 9 * * 1'
   workflow_dispatch:
 
 concurrency:

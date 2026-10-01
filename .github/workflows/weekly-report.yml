@@ -1,8 +1,6 @@
 name: Weekly report (Sunday 19:00 UK)
 
 on:
-  schedule:
-    - cron: '0 18 * * 0'
   workflow_dispatch:
 
 concurrency:

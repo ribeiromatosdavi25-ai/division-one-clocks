@@ -1,8 +1,6 @@
 name: Clocks + member counter (every 10 min)
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 concurrency:

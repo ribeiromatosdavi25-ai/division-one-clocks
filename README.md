@@ -1,6 +1,8 @@
 # Division One automations
 
-Scheduled jobs for the Division One Discord, run for free on GitHub Actions. The NEXO bot token lives in the `DISCORD_TOKEN` repository secret, never in the code.
+Scheduled jobs for the Division One Discord, run for free on GitHub Actions.
+
+**How they are triggered:** GitHub's own schedules turned out to be unreliable (runs delayed or skipped for hours), so a single external cron (cron-job.org) triggers `tick.yml` every 10 minutes through the GitHub API. `tick.js` always updates the clocks and runs whatever else is due in that window. Posting jobs check they have not already posted, so an extra tick never posts twice. The other workflows only run on demand now. The NEXO bot token lives in the `DISCORD_TOKEN` repository secret, never in the code.
 
 | Job | When (UK time) | What it does |
 |---|---|---|
@@ -13,7 +15,7 @@ Scheduled jobs for the Division One Discord, run for free on GitHub Actions. The
 | `calls-board.js` | daily 7:00 | Rolls the pinned "Weekly calls" booking board in #weekly-calls forward a day and adds events for recurring calls in `calls.json`. Booking itself happens from the board's buttons (Vercel) |
 | `weekly-report.js` | Sunday 19:00 | Members, applications, most active channels and invite uses, in #staff-chat |
 
-Times are in UTC in the workflows, so they shift by an hour when the UK changes clocks.
+Times are in UTC in `tick.js`, so they shift by an hour when the UK changes clocks.
 
 Test any job without posting: `DRY_RUN=1 DISCORD_TOKEN=... node <job>.js`
 
