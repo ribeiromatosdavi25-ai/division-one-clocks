@@ -4,7 +4,7 @@ import { NEXO_ID, discord } from './lib.js';
 import { COLD, weekLabel, parseBoard, renderBoard, renderFinal } from './coldcalls-lib.js';
 
 const pins = await discord('GET', `/channels/${COLD.channel}/pins`);
-const board = (pins || []).find(m => m.author?.id === NEXO_ID && JSON.stringify(m.components || []).includes('Cold calls · week of'));
+const board = (pins || []).find(m => m.author?.id === NEXO_ID && /Cold calls/.test(JSON.stringify(m.components || [])) && /[Ww]eek of/.test(JSON.stringify(m.components || [])));
 if (!board) { console.log('no counter found'); process.exit(0); }
 
 const thisWeek = weekLabel();
