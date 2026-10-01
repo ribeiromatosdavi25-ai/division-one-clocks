@@ -11,7 +11,7 @@ await postWithThread(
     text(`## 📊 Numbers time · week of ${week}`),
     text('Drop yours in the thread. Real numbers, no shame. What gets measured gets done.'),
     sep(),
-    text('```\nOutreach sent:    \nMeetings booked:  \nMeetings held:    \nDeals closed:     \nRevenue:          (optional)\nNext week target: \n```'),
+    text('```\nCold calls:       (see the 📞 counter, pinned)\nOutreach sent:    \nMeetings booked:  \nMeetings held:    \nDeals closed:     \nRevenue:          (optional)\nNext week target: \n```'),
   ]),
   `Numbers · ${week}`,
 );

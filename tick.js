@@ -8,6 +8,9 @@ const h = now.getUTCHours();
 const m = now.getUTCMinutes();
 const day = now.getUTCDay(); // 0 Sunday … 6 Saturday
 const window = (hour) => h === hour && m < 10; // the first tick of that hour
+// London clock, for jobs that follow UK time through clock changes.
+const uk = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now).map(p => [p.type, p.value]));
+const ukMondayMidnight = uk.weekday === 'Mon' && Number(uk.hour) % 24 === 0 && Number(uk.minute) < 10;
 
 const due = [
   ['clocks', true],
@@ -18,6 +21,7 @@ const due = [
   ['weekly-numbers', day === 5 && window(16)], // Friday 17:00 UK
   ['trending', day === 1 && window(9)],      // Monday 10:00 UK
   ['weekly-report', day === 0 && window(18)], // Sunday 19:00 UK
+  ['coldcalls-reset', ukMondayMidnight],     // Monday 00:00 UK
 ].filter(([, isDue]) => isDue || process.env.FORCE === '1').map(([job]) => job);
 
 console.log(`tick ${now.toISOString()} → ${due.join(', ')}`);
