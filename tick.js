@@ -15,7 +15,7 @@ const ukMondayMidnight = uk.weekday === 'Mon' && Number(uk.hour) % 24 === 0 && N
 const due = [
   ['clocks', true],
   ['ai-news', m < 10],                       // hourly
-  ['bump-reminder', h % 2 === 0 && m < 10],  // every 2 hours
+  // bump-reminder disabled on his call 2026-10-03 — no more /bump reminders in #staff-chat
   ['calls-board', window(6)],                // daily 07:00 UK (summer time)
   ['daily-goals', window(8)],                // daily 09:00 UK
   ['weekly-numbers', day === 5 && window(16)], // Friday 17:00 UK
