@@ -16,4 +16,4 @@ jobs:
       - run: node open-server.js
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-          DRY_RUN: '1'
+          DRY_RUN: '0'

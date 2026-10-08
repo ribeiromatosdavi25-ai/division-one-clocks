@@ -1,11 +1,13 @@
 // One-off (2026-10-08, his call): no more rules gate. Reading the rules is enough.
 // 1. Whatever the Member role allows (server-wide and per channel) is given to @everyone, so someone who just
 //    joined, with no role, sees exactly what a Member sees. People who already have Member see no change.
-// 2. The "I accept the rules" button (and its line) comes off NEXO's post in #rules.
+// 2. The "I accept the rules" button (and its line) comes off NEXO's post in #rules, and the old
+//    announcement that said "Accept the rules" now says "Read the rules".
 // DRY_RUN=1 prints the plan plus a backup of the current @everyone settings; without it the changes are made.
 import { discord, GUILD, NEXO_ID, DRY_RUN } from './lib.js';
 
 const RULES_CHANNEL = '1554918893787807794';
+const ANNOUNCEMENTS = { channel: '1523536614247235604', post: '1554935316928921650' };
 
 const FLAGS = {
   CREATE_INSTANT_INVITE: 0, KICK_MEMBERS: 1, BAN_MEMBERS: 2, ADMINISTRATOR: 3, MANAGE_CHANNELS: 4, MANAGE_GUILD: 5,
@@ -91,57 +93,86 @@ for (const c of ordered) {
 }
 console.log(`${changed} channel(s) ${DRY_RUN ? 'would change' : 'changed'}.`);
 
-// ---- The button in #rules ----
+// ---- Editing NEXO's own posts ----
+
+// Response-only fields (null emoji ids, proxy urls...) are left out of what we send back.
+const tidy = (v) => Array.isArray(v) ? v.map(tidy)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null && x !== undefined).map(([k, x]) => [k, tidy(x)]))
+  : v;
+
+// Edit a Components V2 post. Uploaded images are sent again as files: the CDN links in a fetched message
+// expire after about a day, so pointing back at them would break the picture.
+async function editPost(channel, post, transform) {
+  const uploads = new Map(); // attachment id -> { url, filename }
+  const media = (m) => {
+    if (!m?.attachment_id) return { url: m.url };
+    const filename = decodeURIComponent(new URL(m.url).pathname.split('/').pop());
+    uploads.set(m.attachment_id, { url: m.url, filename });
+    return { url: `attachment://${filename}` };
+  };
+  const rebuild = (list) => list.map(c => {
+    const copy = { ...c };
+    if (copy.components) copy.components = rebuild(copy.components);
+    if (copy.items) copy.items = copy.items.map(i => ({ ...i, media: media(i.media) }));
+    if (copy.media) copy.media = media(copy.media);
+    if (copy.file) copy.file = media(copy.file);
+    if (copy.accessory) copy.accessory = rebuild([copy.accessory])[0];
+    return copy;
+  });
+  const components = tidy(rebuild(transform(post.components)));
+  const files = [...uploads.values()];
+  const payload = { components, attachments: files.map((f, i) => ({ id: i, filename: f.filename })) };
+  console.log('After:', JSON.stringify(components).slice(0, 2500));
+  console.log(`Images sent again: ${files.map(f => f.filename).join(', ') || 'none'}`);
+  if (DRY_RUN) { console.log(`[dry run] PATCH /channels/${channel}/messages/${post.id}`); return; }
+
+  const form = new FormData();
+  form.append('payload_json', JSON.stringify(payload));
+  for (const [i, f] of files.entries()) {
+    const res = await fetch(f.url);
+    if (!res.ok) throw new Error(`could not download ${f.filename}: ${res.status}`);
+    form.append(`files[${i}]`, new Blob([await res.arrayBuffer()], { type: res.headers.get('content-type') || 'image/png' }), f.filename);
+  }
+  const res = await fetch(`https://discord.com/api/v10/channels/${channel}/messages/${post.id}`, {
+    method: 'PATCH', headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` }, body: form,
+  });
+  if (!res.ok) throw new Error(`PATCH message ${post.id} -> ${res.status} ${await res.text()}`);
+  console.log('✅ edited');
+}
+
+// Drop the accept button row and its "Accept to unlock" line, and any divider left dangling at the end.
+function withoutButton(list) {
+  const out = [];
+  for (const c of list) {
+    if (c.type === 1 && c.components?.some(b => b.custom_id === 'accept_rules')) {
+      const rest = c.components.filter(b => b.custom_id !== 'accept_rules');
+      if (rest.length) out.push({ ...c, components: rest });
+      continue;
+    }
+    if (c.type === 10 && /accept to unlock/i.test(c.content)) continue;
+    out.push(c.components ? { ...c, components: withoutButton(c.components) } : c);
+  }
+  while (out.length && out[out.length - 1].type === 14) out.pop();
+  return out;
+}
+
+// "Accept the rules in #rules" -> "Read the rules in #rules".
+const readNotAccept = (list) => list.map(c => ({
+  ...c,
+  ...(c.type === 10 ? { content: c.content.replace(/Accept the rules/g, 'Read the rules') } : {}),
+  ...(c.components ? { components: readNotAccept(c.components) } : {}),
+}));
+
 console.log('\n=== #rules post');
 const hasButton = (m) => JSON.stringify(m.components || []).includes('"accept_rules"');
 const post = (await discord('GET', `/channels/${RULES_CHANNEL}/messages?limit=50`)).find(m => m.author.id === NEXO_ID && hasButton(m));
 if (!post) console.log('No NEXO post with the accept button found (already removed?).');
 else {
-  const files = Object.fromEntries((post.attachments || []).map(a => [a.id, a.filename]));
-  // Rebuild components for sending: drop the button row and its "Accept to unlock" line, point uploaded
-  // images back at their attachment (the CDN links in a fetched message expire), keep everything else.
-  const clean = (list) => {
-    const out = [];
-    for (const c of list) {
-      if (c.type === 1 && c.components?.some(b => b.custom_id === 'accept_rules')) {
-        const rest = c.components.filter(b => b.custom_id !== 'accept_rules');
-        if (rest.length) out.push({ ...c, components: rest });
-        continue;
-      }
-      if (c.type === 10 && /accept to unlock/i.test(c.content)) continue;
-      const media = (item) => {
-        const url = item.attachment_id && files[item.attachment_id] ? `attachment://${files[item.attachment_id]}` : item.url;
-        return { url };
-      };
-      const copy = { ...c };
-      if (copy.components) copy.components = clean(copy.components);
-      if (copy.items) copy.items = copy.items.map(i => ({ ...i, media: media(i.media) }));
-      if (copy.media) copy.media = media(copy.media);
-      if (copy.file) copy.file = media(copy.file);
-      if (copy.accessory) copy.accessory = clean([copy.accessory])[0];
-      out.push(copy);
-    }
-    // No dangling divider at the end of a card.
-    while (out.length && out[out.length - 1].type === 14) out.pop();
-    return out;
-  };
-  const components = clean(post.components);
-  console.log(`Post ${post.id}, flags ${post.flags}, files: ${Object.values(files).join(', ') || 'none'}`);
-  console.log('Before:', JSON.stringify(post.components).slice(0, 1500));
-  console.log('After: ', JSON.stringify(components).slice(0, 1500));
-  const body = { components, attachments: (post.attachments || []).map(a => ({ id: a.id })) };
-  if (!(post.flags & (1 << 15))) body.content = post.content;
-  await discord('PATCH', `/channels/${RULES_CHANNEL}/messages/${post.id}`, body);
-  console.log(DRY_RUN ? 'Would remove the button.' : '✅ Button removed.');
+  console.log(`Post ${post.id}`);
+  await editPost(RULES_CHANNEL, post, withoutButton);
 }
 
-// Other NEXO posts at the start of the server that still talk about accepting (reported, not changed).
-console.log('\n=== Other posts that mention accepting the rules');
-const rules = channels.find(c => c.id === RULES_CHANNEL);
-for (const c of channels.filter(c => c.parent_id === rules?.parent_id && c.type === 0)) {
-  const msgs = await discord('GET', `/channels/${c.id}/messages?limit=50`).catch(() => []);
-  for (const m of msgs) {
-    const all = m.content + JSON.stringify(m.components || []) + JSON.stringify(m.embeds || []);
-    if (m.id !== post?.id && /accept|unlock/i.test(all)) console.log(`#${c.name} ${m.id} (by ${m.author.username}): ${all.match(/.{0,80}(accept|unlock).{0,80}/i)?.[0]}`);
-  }
-}
+console.log('\n=== Old announcement');
+const news = await discord('GET', `/channels/${ANNOUNCEMENTS.channel}/messages/${ANNOUNCEMENTS.post}`);
+if (news.author?.id !== NEXO_ID || !JSON.stringify(news.components || []).includes('Accept the rules')) console.log('Nothing to change.');
+else await editPost(ANNOUNCEMENTS.channel, news, readNotAccept);
