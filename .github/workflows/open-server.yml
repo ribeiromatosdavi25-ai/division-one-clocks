@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node open-server.js
+      - run: node say-hi.js
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DRY_RUN: '0'
